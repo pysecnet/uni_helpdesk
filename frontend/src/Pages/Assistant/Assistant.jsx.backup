@@ -1,0 +1,162 @@
+import { useState, useEffect, useRef } from "react";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import styles from "./Assistant.module.css";
+
+export default function Assistant() {
+  const user = useSelector((state) => state.user.user);
+  const navigate = useNavigate();
+
+  const [messages, setMessages] = useState([
+    {
+      sender: "bot",
+      text: user
+        ? `Hello ${user.fullname}! I'm your AI Academic Assistant. Ask me anything related to your university or academics.`
+        : "Hello! I'm your AI Academic Assistant. Ask me anything related to your university or academics. Sign up for more personalized features!",
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+
+    const userMsg = {
+      sender: "user",
+      text: input,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:5000/api/assistant/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: input }),
+      });
+
+      const data = await res.json();
+
+      const botMsg = {
+        sender: "bot",
+        text: data.answer || "Sorry, I couldn't find an answer for that.",
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (error) {
+      console.error("Error:", error);
+      const botErrorMsg = {
+        sender: "bot",
+        text: "Oops! Something went wrong. Please try again.",
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, botErrorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="py-5 text-center">
+      <h1 className="display-5 fw-bold text-body-emphasis">
+        AI Academic Assistant
+      </h1>
+      <div className="col-lg-6 mx-auto">
+        <p className="lead mb-4">
+          Get instant help with your academic questions. Ask about any subject
+          and receive detailed explanations.
+        </p>
+        {!user && (
+          <div className="alert alert-info">
+            <strong>Tip:</strong> Sign up for a free account to submit support tickets and track your queries!
+            <button
+              className="btn btn-sm btn-primary ms-3"
+              onClick={() => navigate("/signup")}
+            >
+              Sign Up Free
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.chatContainer}>
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={
+              msg.sender === "bot"
+                ? styles.robocontainer
+                : styles.humancontainer
+            }
+          >
+            <div className={styles.robosection}>
+              {msg.sender === "bot" && (
+                <i className={`bi bi-robot ${styles.roboicon}`}></i>
+              )}
+              <div
+                className={
+                  msg.sender === "bot" ? styles.robopara : styles.userpara
+                }
+              >
+                <p>{msg.text}</p>
+                <div className={styles.date}>{msg.time}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+          <div className={styles.robocontainer}>
+            <div className={styles.robosection}>
+              <i className={`bi bi-robot ${styles.roboicon}`}></i>
+              <div className={styles.robopara}>
+                <p>Thinking...</p>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef}></div>
+      </div>
+
+      <div className={styles.messagecontainer}>
+        <input
+          className={styles.input}
+          type="text"
+          placeholder="Enter your query..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !isLoading && handleSend()}
+          disabled={isLoading}
+        />
+        <button
+          className={styles.btn}
+          onClick={handleSend}
+          disabled={isLoading || !input.trim()}
+        >
+          <i className={`bi bi-send ${styles.sendicon}`}></i>
+        </button>
+      </div>
+    </div>
+  );
+}
