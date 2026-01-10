@@ -60,7 +60,7 @@ export default function Ticket({ isAdmin = false }) {
       case "Open":
         return "badge bg-success";
       case "Assigned":
-        return "badge bg-info";
+        return "badge bg-info"; // ✅ Added Assigned status
       case "In Progress":
         return "badge bg-warning text-dark";
       case "Closed":
@@ -70,7 +70,6 @@ export default function Ticket({ isAdmin = false }) {
     }
   };
 
-  // ✅ Ensure departments is always an array
   const departmentsList = Array.isArray(departments) ? departments : [];
 
   return (
@@ -120,7 +119,7 @@ export default function Ticket({ isAdmin = false }) {
                       ...prev,
                       [ticket._id]: e.target.value
                     }))}
-                    disabled={departmentsList.length === 0}
+                    disabled={departmentsList.length === 0 || ticket.status === "Closed"}
                   >
                     <option value="">
                       {departmentsList.length === 0 
@@ -136,7 +135,7 @@ export default function Ticket({ isAdmin = false }) {
                   <button
                     className="btn btn-primary"
                     onClick={() => handleAssign(ticket._id, assignedDept[ticket._id])}
-                    disabled={!assignedDept[ticket._id] || departmentsList.length === 0}
+                    disabled={!assignedDept[ticket._id] || departmentsList.length === 0 || ticket.status === "Closed"}
                   >
                     Assign
                   </button>

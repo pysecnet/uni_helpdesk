@@ -1,141 +1,216 @@
+// controllers/ticketController.js
 import Ticket from "../models/ticketModel.js";
-import User from "../models/userModel.js";
 import Department from "../models/departmentModel.js";
+import User from "../models/userModel.js";
+import { validateRollNumber, extractDepartmentCode } from "../utils/rollNumberUtils.js";
 
-// Helper function to extract department from roll number
-const getDepartmentFromRollNumber = (rollNumber) => {
-  const match = rollNumber.match(/2k\d{2}-(CS|IT|EE|ME|CE)-\d+/i);
-  if (match) {
-    return match[1].toUpperCase();
-  }
-  return null;
-};
-
-// Helper function to get year from roll number
-const getYearFromRollNumber = (rollNumber) => {
-  const match = rollNumber.match(/2k(\d{2})/i);
-  if (match) {
-    return `20${match[1]}`;
-  }
-  return null;
-};
-
-// ------------------------------
-// Create Ticket (Student only)
-// ------------------------------
+// Create a new ticket with auto-department assignment
 export const createTicket = async (req, res) => {
   try {
-    if (req.user.role !== "student") {
-      return res.status(403).json({ message: "Student access only" });
+    const { title, category, description, studentEmail, studentPhone } = req.body;
+    const userId = req.user._id;
+
+    // Get user details to extract roll number
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Get student details
-    const student = await User.findById(req.user._id);
-    if (!student) {
-      return res.status(404).json({ message: "Student not found" });
-    }
-
-    // Verify student has roll number
-    if (!student.rollNumber) {
-      return res.status(400).json({ 
-        message: "Roll number is required. Please update your profile." 
+    // Validate that user is a student
+    if (user.role !== "student") {
+      return res.status(403).json({
+        message: "Only students can create support tickets",
       });
     }
 
-    const { title, category, description, studentEmail, studentPhone } = req.body;
-
-    if (!title || !category || !description || !studentEmail || !studentPhone) {
-      return res.status(400).json({ message: "All fields are required" });
+    // Check if user has a roll number
+    if (!user.rollNumber) {
+      return res.status(400).json({
+        message: "Your account does not have a roll number. Please contact administration.",
+      });
     }
 
-    // Extract department from roll number
-    const deptCode = getDepartmentFromRollNumber(student.rollNumber);
-    const year = getYearFromRollNumber(student.rollNumber);
+    // Validate roll number and check enrollment status
+    const validation = validateRollNumber(user.rollNumber);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        message: "Cannot create ticket",
+        error: validation.error,
+        help: "Only currently enrolled students can create support tickets. If you believe this is an error, please contact the registrar's office.",
+      });
+    }
 
-    console.log(`📋 Student: ${student.fullname}, Roll: ${student.rollNumber}, Dept: ${deptCode}, Year: ${year}`);
+    // Extract department code from roll number
+    const departmentCode = extractDepartmentCode(user.rollNumber);
+    console.log(`Student roll number: ${user.rollNumber}, Department code: ${departmentCode}`);
 
-    const newTicket = await Ticket.create({
+    // Find the department by matching the code with department name
+    // This assumes your departments are named like "Information Technology", "Computer Science", etc.
+    const department = await Department.findOne({
+      $or: [
+        { name: { $regex: departmentCode, $options: "i" } },
+        { name: validation.data.departmentName },
+        { code: departmentCode }, // If you have a code field
+      ],
+    });
+
+    if (!department) {
+      return res.status(404).json({
+        message: `Department not found for ${departmentCode}`,
+        help: `No department matches your roll number (${user.rollNumber}). Available department codes: IT, CS, SE, EE, ME, CE, etc. Please contact IT support if your department is not listed.`,
+      });
+    }
+
+    console.log(`Ticket auto-assigned to department: ${department.name} (${department._id})`);
+
+    // Generate ticket number
+    const ticketCount = await Ticket.countDocuments();
+    const ticketNo = `TKT-${Date.now()}-${ticketCount + 1}`;
+
+    // Create the ticket with auto-assigned department
+    const ticket = await Ticket.create({
+      userId,
       title,
       category,
       description,
-      studentEmail,
-      studentPhone,
-      studentRollNumber: student.rollNumber,
-      studentDepartment: deptCode,
-      studentYear: year,
-      createdBy: req.user._id,
+      studentEmail: studentEmail || user.email,
+      studentPhone: studentPhone || user.phone,
+      ticketNo,
+      assignedDepartment: department._id,
+      status: "Assigned", // Automatically assigned to department
+      studentRollNumber: user.rollNumber,
+      studentYear: validation.data.studentYear,
+      enrollmentYear: validation.data.enrollmentYear,
     });
 
-    const populatedTicket = await Ticket.findById(newTicket._id)
-      .populate("createdBy", "fullname email rollNumber")
-      .populate("assignedDepartment", "name");
+    // Populate department info in response
+    const populatedTicket = await Ticket.findById(ticket._id)
+      .populate("assignedDepartment", "name")
+      .populate("userId", "fullname email rollNumber");
 
-    res.status(201).json({ 
-      message: "Ticket created successfully", 
-      ticket: populatedTicket 
+    res.status(201).json({
+      message: "Ticket created and assigned successfully",
+      ticket: populatedTicket,
+      assignedTo: department.name,
+      studentInfo: {
+        rollNumber: user.rollNumber,
+        year: validation.data.studentYear,
+        department: validation.data.departmentName,
+      },
     });
   } catch (error) {
-    console.error("❌ Ticket creation error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Error creating ticket:", error);
+    res.status(500).json({
+      message: "Error creating ticket",
+      error: error.message,
+    });
   }
 };
 
-// ------------------------------
-// Get My Tickets (Student only)
-// ------------------------------
+// Get tickets for student (their own tickets)
 export const getMyTickets = async (req, res) => {
   try {
-    if (req.user.role !== "student") {
-      return res.status(403).json({ message: "Student access only" });
-    }
+    const userId = req.user._id;
 
-    const tickets = await Ticket.find({ createdBy: req.user._id })
+    const tickets = await Ticket.find({ userId })
       .populate("assignedDepartment", "name")
-      .populate("createdBy", "fullname email rollNumber")
       .sort({ createdAt: -1 });
-    
-    res.json({ tickets });
+
+    res.json({
+      tickets,
+      count: tickets.length,
+    });
   } catch (error) {
-    console.error("❌ Get My Tickets error:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error fetching tickets:", error);
+    res.status(500).json({
+      message: "Error fetching tickets",
+      error: error.message,
+    });
   }
 };
 
-// ------------------------------
-// Get All Tickets (Admin only)
-// ------------------------------
+// Get all tickets (admin only)
 export const getAllTickets = async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin access only" });
-    }
-
     const tickets = await Ticket.find()
-      .populate("createdBy", "fullname email rollNumber")
       .populate("assignedDepartment", "name")
+      .populate("userId", "fullname email rollNumber")
       .sort({ createdAt: -1 });
-    
-    res.json({ tickets });
+
+    res.json({
+      tickets,
+      count: tickets.length,
+    });
   } catch (error) {
-    console.error("❌ Get All Tickets error:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error fetching tickets:", error);
+    res.status(500).json({
+      message: "Error fetching tickets",
+      error: error.message,
+    });
   }
 };
 
-// ------------------------------
-// Assign Ticket to Department (Admin only)
-// ------------------------------
-export const assignTicketToDepartment = async (req, res) => {
+// Get tickets for a specific department (department admin)
+export const getDepartmentTickets = async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin access only" });
+    const user = req.user;
+
+    // If user is main admin, return all tickets
+    if (user.role === "admin") {
+      const tickets = await Ticket.find()
+        .populate("assignedDepartment", "name")
+        .populate("userId", "fullname email rollNumber")
+        .sort({ createdAt: -1 });
+
+      return res.json({
+        tickets,
+        count: tickets.length,
+      });
     }
 
+    // If user is department admin, return only their department's tickets
+    if (user.role === "department") {
+      if (!user.departmentId) {
+        return res.status(400).json({
+          message: "Your account is not assigned to a department",
+        });
+      }
+
+      const tickets = await Ticket.find({ assignedDepartment: user.departmentId })
+        .populate("assignedDepartment", "name")
+        .populate("userId", "fullname email rollNumber")
+        .sort({ createdAt: -1 });
+
+      return res.json({
+        tickets,
+        count: tickets.length,
+        department: user.departmentId,
+      });
+    }
+
+    res.status(403).json({
+      message: "Unauthorized access",
+    });
+  } catch (error) {
+    console.error("Error fetching department tickets:", error);
+    res.status(500).json({
+      message: "Error fetching department tickets",
+      error: error.message,
+    });
+  }
+};
+
+// Assign ticket to department (admin only)
+export const assignTicketToDepartment = async (req, res) => {
+  try {
     const { ticketId } = req.params;
     const { departmentId } = req.body;
 
-    if (!departmentId) {
-      return res.status(400).json({ message: "Department ID is required" });
+    // Only main admin can manually reassign tickets
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Only main admin can reassign tickets",
+      });
     }
 
     const ticket = await Ticket.findById(ticketId);
@@ -143,113 +218,157 @@ export const assignTicketToDepartment = async (req, res) => {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    // Update ticket with department and change status to "Assigned"
+    const department = await Department.findById(departmentId);
+    if (!department) {
+      return res.status(404).json({ message: "Department not found" });
+    }
+
     ticket.assignedDepartment = departmentId;
     ticket.status = "Assigned";
     await ticket.save();
 
-    const populatedTicket = await Ticket.findById(ticketId)
+    const updatedTicket = await Ticket.findById(ticketId)
       .populate("assignedDepartment", "name")
-      .populate("createdBy", "fullname email rollNumber");
+      .populate("userId", "fullname email rollNumber");
 
     res.json({
-      message: "Ticket assigned successfully",
-      ticket: populatedTicket,
+      message: "Ticket reassigned successfully",
+      ticket: updatedTicket,
     });
   } catch (error) {
-    console.error("❌ Assign Ticket error:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error assigning ticket:", error);
+    res.status(500).json({
+      message: "Error assigning ticket",
+      error: error.message,
+    });
   }
 };
 
-// ------------------------------
-// Get Department Tickets (Department only)
-// ------------------------------
-export const getDepartmentTickets = async (req, res) => {
-  try {
-    if (req.user.role !== "department") {
-      return res.status(403).json({ message: "Department access only" });
-    }
-
-    console.log("👤 User:", req.user);
-    console.log("🏢 Department ID:", req.user.departmentId);
-
-    // Filter tickets by the user's assigned department
-    const tickets = await Ticket.find({
-      assignedDepartment: req.user.departmentId,
-    })
-      .populate("createdBy", "fullname email rollNumber")
-      .populate("assignedDepartment", "name")
-      .sort({ createdAt: -1 });
-
-    console.log("🎫 Found tickets:", tickets.length);
-
-    res.json({ tickets });
-  } catch (error) {
-    console.error("❌ Get Department Tickets error:", error.message);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ------------------------------
-// Update Ticket Status (Admin or Department)
-// ------------------------------
+// Update ticket status (department admin or main admin)
 export const updateTicketStatus = async (req, res) => {
   try {
     const { ticketId } = req.params;
     const { status } = req.body;
-
-    console.log("🔄 Update Status Request:", {
-      ticketId,
-      status,
-      userRole: req.user.role,
-      userDepartmentId: req.user.departmentId,
-    });
+    const user = req.user;
 
     const ticket = await Ticket.findById(ticketId);
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    // Authorization Check
-    if (req.user.role === "department") {
-      if (!ticket.assignedDepartment) {
-        return res.status(403).json({ 
-          message: "This ticket is not assigned to any department yet" 
-        });
-      }
-
-      if (ticket.assignedDepartment.toString() !== req.user.departmentId.toString()) {
+    // Check permissions
+    if (user.role === "department") {
+      // Department admin can only update tickets assigned to their department
+      if (ticket.assignedDepartment.toString() !== user.departmentId.toString()) {
         return res.status(403).json({
-          message: "You are not authorized to update this ticket",
+          message: "You can only update tickets assigned to your department",
         });
       }
-
-      // Department can only set "In Progress" or "Closed"
-      if (!["In Progress", "Closed"].includes(status)) {
-        return res.status(400).json({
-          message: "Department can only set status to 'In Progress' or 'Closed'",
-        });
-      }
-    } else if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Access denied" });
+    } else if (user.role !== "admin") {
+      return res.status(403).json({
+        message: "Unauthorized to update ticket status",
+      });
     }
 
-    // Update status
+    // Validate status
+    const validStatuses = ["Open", "Assigned", "In Progress", "Closed"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        message: "Invalid status",
+        validStatuses,
+      });
+    }
+
     ticket.status = status;
-    if (status === "Closed") ticket.resolvedAt = new Date();
     await ticket.save();
 
-    const populatedTicket = await Ticket.findById(ticketId)
+    const updatedTicket = await Ticket.findById(ticketId)
       .populate("assignedDepartment", "name")
-      .populate("createdBy", "fullname email rollNumber");
+      .populate("userId", "fullname email rollNumber");
 
-    res.json({ 
-      message: "Status updated successfully", 
-      ticket: populatedTicket 
+    res.json({
+      message: "Ticket status updated successfully",
+      ticket: updatedTicket,
     });
   } catch (error) {
-    console.error("❌ Update Ticket Status error:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error updating ticket status:", error);
+    res.status(500).json({
+      message: "Error updating ticket status",
+      error: error.message,
+    });
   }
+};
+
+// Get ticket statistics (for admin dashboard)
+export const getTicketStats = async (req, res) => {
+  try {
+    const user = req.user;
+    let query = {};
+
+    // If department admin, filter by their department
+    if (user.role === "department" && user.departmentId) {
+      query.assignedDepartment = user.departmentId;
+    }
+
+    const totalTickets = await Ticket.countDocuments(query);
+    const openTickets = await Ticket.countDocuments({ ...query, status: "Open" });
+    const assignedTickets = await Ticket.countDocuments({ ...query, status: "Assigned" });
+    const inProgressTickets = await Ticket.countDocuments({ ...query, status: "In Progress" });
+    const closedTickets = await Ticket.countDocuments({ ...query, status: "Closed" });
+
+    // Get tickets by department
+    const ticketsByDepartment = await Ticket.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: "$assignedDepartment",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $lookup: {
+          from: "departments",
+          localField: "_id",
+          foreignField: "_id",
+          as: "department",
+        },
+      },
+      {
+        $unwind: "$department",
+      },
+      {
+        $project: {
+          departmentName: "$department.name",
+          count: 1,
+        },
+      },
+    ]);
+
+    res.json({
+      stats: {
+        total: totalTickets,
+        open: openTickets,
+        assigned: assignedTickets,
+        inProgress: inProgressTickets,
+        closed: closedTickets,
+      },
+      byDepartment: ticketsByDepartment,
+    });
+  } catch (error) {
+    console.error("Error fetching ticket stats:", error);
+    res.status(500).json({
+      message: "Error fetching ticket statistics",
+      error: error.message,
+    });
+  }
+};
+
+export default {
+  createTicket,
+  getMyTickets,
+  getAllTickets,
+  getDepartmentTickets,
+  assignTicketToDepartment,
+  updateTicketStatus,
+  getTicketStats,
 };

@@ -1,18 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
 import styles from "./Assistant.module.css";
 
 export default function Assistant() {
-  const user = useSelector((state) => state.user.user);
-  const navigate = useNavigate();
-
   const [messages, setMessages] = useState([
     {
       sender: "bot",
-      text: user
-        ? `Hello ${user.fullname}! I'm your AI Academic Assistant. Ask me anything related to your university or academics.`
-        : "Hello! I'm your AI Academic Assistant. Ask me anything related to your university or academics. Sign up for more personalized features!",
+      text: "Hello! I'm your AI Academic Assistant. Ask me anything related to your university or academics.",
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -20,9 +13,10 @@ export default function Assistant() {
     },
   ]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef(null);
 
+  // Auto-scroll to latest message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -30,6 +24,7 @@ export default function Assistant() {
   const handleSend = async () => {
     if (!input.trim()) return;
 
+    // Add user's message
     const userMsg = {
       sender: "user",
       text: input,
@@ -40,22 +35,20 @@ export default function Assistant() {
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
-    setIsLoading(true);
+    setIsTyping(true);
 
     try {
       const res = await fetch("http://localhost:5000/api/assistant/ask", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: input }),
       });
-
       const data = await res.json();
 
       const botMsg = {
         sender: "bot",
         text: data.answer || "Sorry, I couldn't find an answer for that.",
+        source: data.source, // ✅ Track source
         time: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -74,7 +67,7 @@ export default function Assistant() {
       };
       setMessages((prev) => [...prev, botErrorMsg]);
     } finally {
-      setIsLoading(false);
+      setIsTyping(false);
     }
   };
 
@@ -88,17 +81,6 @@ export default function Assistant() {
           Get instant help with your academic questions. Ask about any subject
           and receive detailed explanations.
         </p>
-        {!user && (
-          <div className="alert alert-info">
-            <strong>Tip:</strong> Sign up for a free account to submit support tickets and track your queries!
-            <button
-              className="btn btn-sm btn-primary ms-3"
-              onClick={() => navigate("/signup")}
-            >
-              Sign Up Free
-            </button>
-          </div>
-        )}
       </div>
 
       <div className={styles.chatContainer}>
@@ -121,21 +103,31 @@ export default function Assistant() {
                 }
               >
                 <p>{msg.text}</p>
-                <div className={styles.date}>{msg.time}</div>
+                <div className={styles.date}>
+                  {msg.time}
+                  {/* ✅ Show source badge */}
+                  {msg.source && (
+                    <span className={styles.sourceBadge}>
+                      {msg.source === "database" ? "📚 KB" : "🤖 AI"}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         ))}
-        {isLoading && (
+        
+        {isTyping && (
           <div className={styles.robocontainer}>
             <div className={styles.robosection}>
               <i className={`bi bi-robot ${styles.roboicon}`}></i>
               <div className={styles.robopara}>
-                <p>Thinking...</p>
+                <p className={styles.typing}>Typing...</p>
               </div>
             </div>
           </div>
         )}
+        
         <div ref={bottomRef}></div>
       </div>
 
@@ -146,13 +138,13 @@ export default function Assistant() {
           placeholder="Enter your query..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !isLoading && handleSend()}
-          disabled={isLoading}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          disabled={isTyping}
         />
-        <button
-          className={styles.btn}
+        <button 
+          className={styles.btn} 
           onClick={handleSend}
-          disabled={isLoading || !input.trim()}
+          disabled={isTyping}
         >
           <i className={`bi bi-send ${styles.sendicon}`}></i>
         </button>

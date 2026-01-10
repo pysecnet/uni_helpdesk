@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, NavLink } from "react-router-dom";
 import { signupUser, clearError } from "../../features/userSlice";
+import styles from "./Signup.module.css";
 
 function Signup() {
   const dispatch = useDispatch();
@@ -20,6 +21,7 @@ function Signup() {
     role: "student",
   });
 
+  const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
@@ -90,152 +92,304 @@ function Signup() {
     dispatch(signupUser(formData));
   };
 
+  // Toggle password visibility
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
   return (
-    <div
-      className="container mt-5 p-4 shadow rounded"
-      style={{ maxWidth: "500px" }}
-    >
-      <h2 className="mb-2 text-center">Create Student Account</h2>
-      <p className="text-danger text-center small mb-4">
-        All fields are required for student registration: fullname, email, password, rollNumber, gender, dob, address, phone
-      </p>
-
-      {(error || validationError) && (
-        <div className="alert alert-danger" role="alert">
-          {validationError || error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit}>
-        {/* Full Name */}
-        <div className="mb-3">
-          <input
-            type="text"
-            name="fullname"
-            value={formData.fullname}
-            placeholder="Full Name *"
-            className="form-control"
-            onChange={handleChange}
-            required
-          />
-        </div>
-
-        {/* Email */}
-        <div className="mb-3">
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            placeholder="Email Address *"
-            className="form-control"
-            onChange={handleChange}
-            required
-          />
+    <div className={styles.signupPage}>
+      <div className={styles.signupContainer}>
+        {/* Left Side - Branding */}
+        <div className={styles.signupBranding}>
+          <div className={styles.brandingContent}>
+            <div className={styles.brandingIcon}>
+              <i className="bi bi-person-plus"></i>
+            </div>
+            <h1 className={styles.brandingTitle}>
+              Join <span className={styles.brandAccent}>UniHelp</span>
+            </h1>
+            <p className={styles.brandingDescription}>
+              Create your student account to access AI-powered assistance, submit
+              support tickets, and track your academic journey.
+            </p>
+            <div className={styles.brandingFeatures}>
+              <div className={styles.featureItem}>
+                <i className="bi bi-check-circle-fill"></i>
+                <span>Free AI Academic Assistant</span>
+              </div>
+              <div className={styles.featureItem}>
+                <i className="bi bi-check-circle-fill"></i>
+                <span>Personalized Support Dashboard</span>
+              </div>
+              <div className={styles.featureItem}>
+                <i className="bi bi-check-circle-fill"></i>
+                <span>Real-time Ticket Tracking</span>
+              </div>
+              <div className={styles.featureItem}>
+                <i className="bi bi-check-circle-fill"></i>
+                <span>24/7 Instant Help</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Password */}
-        <div className="mb-3">
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            placeholder="Password * (min 6 characters)"
-            className="form-control"
-            onChange={handleChange}
-            required
-          />
+        {/* Right Side - Signup Form */}
+        <div className={styles.signupFormSection}>
+          <div className={styles.formContainer}>
+            <div className={styles.formHeader}>
+              <h2 className={styles.formTitle}>Create Account</h2>
+              <p className={styles.formSubtitle}>
+                Fill in your details to get started
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {(error || validationError) && (
+              <div className={styles.errorAlert}>
+                <i className="bi bi-exclamation-circle"></i>
+                <span>{validationError || error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className={styles.signupForm}>
+              {/* Personal Information Section */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <i className="bi bi-person"></i>
+                  Personal Information
+                </h3>
+
+                {/* Full Name */}
+                <div className={styles.inputGroup}>
+                  <label htmlFor="fullname" className={styles.inputLabel}>
+                    Full Name
+                  </label>
+                  <div className={styles.inputWrapper}>
+                    <i className="bi bi-person"></i>
+                    <input
+                      type="text"
+                      id="fullname"
+                      name="fullname"
+                      value={formData.fullname}
+                      placeholder="Enter your full name"
+                      className={styles.input}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Email and Password Row */}
+                <div className={styles.inputRow}>
+                  <div className={styles.inputGroup}>
+                    <label htmlFor="email" className={styles.inputLabel}>
+                      Email Address
+                    </label>
+                    <div className={styles.inputWrapper}>
+                      <i className="bi bi-envelope"></i>
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={formData.email}
+                        placeholder="your.email@university.edu"
+                        className={styles.input}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.inputGroup}>
+                    <label htmlFor="password" className={styles.inputLabel}>
+                      Password
+                    </label>
+                    <div className={styles.inputWrapper}>
+                      <i className="bi bi-lock"></i>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        id="password"
+                        name="password"
+                        value={formData.password}
+                        placeholder="Min 6 characters"
+                        className={styles.input}
+                        onChange={handleChange}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className={styles.togglePassword}
+                        onClick={togglePasswordVisibility}
+                        aria-label="Toggle password visibility"
+                      >
+                        <i className={`bi ${showPassword ? "bi-eye-slash" : "bi-eye"}`}></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Gender and Date of Birth Row */}
+                <div className={styles.inputRow}>
+                  <div className={styles.inputGroup}>
+                    <label htmlFor="gender" className={styles.inputLabel}>
+                      Gender
+                    </label>
+                    <div className={styles.inputWrapper}>
+                      <i className="bi bi-gender-ambiguous"></i>
+                      <select
+                        id="gender"
+                        name="gender"
+                        value={formData.gender}
+                        className={styles.select}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className={styles.inputGroup}>
+                    <label htmlFor="dob" className={styles.inputLabel}>
+                      Date of Birth
+                    </label>
+                    <div className={styles.inputWrapper}>
+                      <i className="bi bi-calendar"></i>
+                      <input
+                        type="date"
+                        id="dob"
+                        name="dob"
+                        value={formData.dob}
+                        className={styles.input}
+                        max={new Date().toISOString().split("T")[0]}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Academic Information Section */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <i className="bi bi-mortarboard"></i>
+                  Academic Information
+                </h3>
+
+                {/* Roll Number */}
+                <div className={styles.inputGroup}>
+                  <label htmlFor="rollNumber" className={styles.inputLabel}>
+                    Roll Number
+                  </label>
+                  <div className={styles.inputWrapper}>
+                    <i className="bi bi-hash"></i>
+                    <input
+                      type="text"
+                      id="rollNumber"
+                      name="rollNumber"
+                      value={formData.rollNumber}
+                      placeholder="e.g., 2K26-IT-1"
+                      className={`${styles.input} ${styles.uppercase}`}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className={styles.inputHint}>
+                    <i className="bi bi-info-circle"></i>
+                    Format: 2K26-IT-1 (Departments: CS, IT, EE, ME, CE)
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information Section */}
+              <div className={styles.formSection}>
+                <h3 className={styles.sectionTitle}>
+                  <i className="bi bi-telephone"></i>
+                  Contact Information
+                </h3>
+
+                {/* Phone */}
+                <div className={styles.inputGroup}>
+                  <label htmlFor="phone" className={styles.inputLabel}>
+                    Phone Number
+                  </label>
+                  <div className={styles.inputWrapper}>
+                    <i className="bi bi-telephone"></i>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      value={formData.phone}
+                      placeholder="e.g., 0316-3280715"
+                      className={styles.input}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className={styles.inputHint}>
+                    <i className="bi bi-info-circle"></i>
+                    Format: 0316-3280715
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className={styles.inputGroup}>
+                  <label htmlFor="address" className={styles.inputLabel}>
+                    Address
+                  </label>
+                  <div className={styles.inputWrapper}>
+                    <i className="bi bi-geo-alt"></i>
+                    <textarea
+                      id="address"
+                      name="address"
+                      value={formData.address}
+                      placeholder="Enter your complete address"
+                      className={styles.textarea}
+                      rows="3"
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className={styles.submitButton}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className={styles.spinner}></span>
+                    Creating Account...
+                  </>
+                ) : (
+                  <>
+                    <span>Create Account</span>
+                    <i className="bi bi-arrow-right"></i>
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Login Link */}
+            <div className={styles.loginPrompt}>
+              <p>
+                Already have an account?{" "}
+                <NavLink to="/login" className={styles.loginLink}>
+                  Sign in
+                </NavLink>
+              </p>
+            </div>
+          </div>
         </div>
-
-        {/* Roll Number */}
-        <div className="mb-3">
-          <input
-            type="text"
-            name="rollNumber"
-            value={formData.rollNumber}
-            placeholder="Roll Number * (e.g., 2K26-IT-1)"
-            className="form-control text-uppercase"
-            onChange={handleChange}
-            required
-          />
-          <small className="form-text text-muted">
-            Format: 2K26-IT-1 (Departments: CS, IT, EE, ME, CE)
-          </small>
-        </div>
-
-        {/* Gender */}
-        <div className="mb-3">
-          <select
-            name="gender"
-            value={formData.gender}
-            className="form-select"
-            onChange={handleChange}
-            required
-          >
-            <option value="">Select Gender *</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-
-        {/* Date of Birth */}
-        <div className="mb-3">
-          <label className="form-label text-muted small">Date of Birth *</label>
-          <input
-            type="date"
-            name="dob"
-            value={formData.dob}
-            className="form-control"
-            max={new Date().toISOString().split("T")[0]}
-            onChange={handleChange}
-            required
-          />
-        </div>
-
-        {/* Phone */}
-        <div className="mb-3">
-          <input
-            type="tel"
-            name="phone"
-            value={formData.phone}
-            placeholder="Phone Number * (e.g., 0316-3280715)"
-            className="form-control"
-            onChange={handleChange}
-            required
-          />
-          <small className="form-text text-muted">
-            Format: 0316-3280715
-          </small>
-        </div>
-
-        {/* Address */}
-        <div className="mb-3">
-          <textarea
-            name="address"
-            value={formData.address}
-            placeholder="Address *"
-            className="form-control"
-            rows="2"
-            onChange={handleChange}
-            required
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="btn btn-primary w-100"
-          disabled={loading}
-        >
-          {loading ? "Creating Account..." : "Sign Up"}
-        </button>
-      </form>
-
-      <p className="text-center mt-3 text-muted">
-        Already have an account?{" "}
-        <a href="/login" className="text-primary">
-          Login here
-        </a>
-      </p>
+      </div>
     </div>
   );
 }

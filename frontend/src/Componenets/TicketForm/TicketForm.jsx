@@ -13,6 +13,7 @@ export default function TicketForm() {
     studentPhone: "",
   });
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState(""); // 'success' or 'error'
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
@@ -23,10 +24,12 @@ export default function TicketForm() {
     e.preventDefault();
     setIsSubmitting(true);
     setMessage("");
+    setMessageType("");
 
     try {
       const res = await dispatch(addTicket(formData)).unwrap();
-      setMessage(res?.message || "Ticket created successfully");
+      setMessage(res?.message || "Ticket created successfully! We'll get back to you soon.");
+      setMessageType("success");
       setFormData({
         title: "",
         category: "",
@@ -36,79 +39,267 @@ export default function TicketForm() {
       });
       await dispatch(fetchMyTickets());
     } catch (err) {
-      setMessage(err?.message || "Error creating ticket");
+      setMessage(err?.message || "Error creating ticket. Please try again.");
+      setMessageType("error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleClear = () => {
+    setFormData({
+      title: "",
+      category: "",
+      description: "",
+      studentEmail: "",
+      studentPhone: "",
+    });
+    setMessage("");
+    setMessageType("");
+  };
+
   return (
-    <div className="px-4 py-5 my-5 text-center">
-      <h1 className="display-5 fw-bold">Submit Support Ticket</h1>
+    <div className={styles.ticketFormPage}>
+      <div className={styles.formContainer}>
+        {/* Header Section */}
+        <div className={styles.headerSection}>
+          <div className={styles.headerIcon}>
+            <i className="bi bi-ticket-perforated"></i>
+          </div>
+          <h2 className={styles.headerTitle}>Submit Support Ticket</h2>
+          <p className={styles.headerSubtitle}>
+            Fill out the form below and our support team will assist you as soon as possible
+          </p>
+        </div>
 
-      {message && <div className="alert alert-info mt-3">{message}</div>}
+        {/* Message Alert */}
+        {message && (
+          <div
+            className={`${styles.messageAlert} ${
+              messageType === "success" ? styles.alertSuccess : styles.alertError
+            }`}
+          >
+            <i
+              className={`bi ${
+                messageType === "success"
+                  ? "bi-check-circle-fill"
+                  : "bi-exclamation-circle-fill"
+              }`}
+            ></i>
+            <span>{message}</span>
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit} className={styles.ticketForm}>
-        <input
-          type="text"
-          name="title"
-          placeholder="Title"
-          value={formData.title}
-          onChange={handleChange}
-          required
-          className="form-control mb-3"
-        />
+        {/* Form */}
+        <form onSubmit={handleSubmit} className={styles.ticketForm}>
+          {/* Ticket Information Section */}
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>
+              <i className="bi bi-info-circle"></i>
+              Ticket Information
+            </h3>
 
-        <select
-          name="category"
-          value={formData.category}
-          onChange={handleChange}
-          required
-          className="form-select mb-3"
-        >
-          <option value="">Select Category</option>
-          <option value="Technical Issue">Technical Issue</option>
-          <option value="Academic Query">Academic Query</option>
-          <option value="Administrative Help">Administrative Help</option>
-        </select>
+            {/* Title */}
+            <div className={styles.formGroup}>
+              <label htmlFor="title" className={styles.formLabel}>
+                Ticket Title
+              </label>
+              <div className={styles.inputWrapper}>
+                <i className="bi bi-pencil"></i>
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  placeholder="Brief title for your issue"
+                  value={formData.title}
+                  onChange={handleChange}
+                  required
+                  disabled={isSubmitting}
+                  className={styles.input}
+                />
+              </div>
+              <div className={styles.inputHint}>
+                <i className="bi bi-info-circle"></i>
+                <span>Provide a clear, concise title</span>
+              </div>
+            </div>
 
-        <textarea
-          name="description"
-          placeholder="Describe your issue"
-          value={formData.description}
-          onChange={handleChange}
-          required
-          className="form-control mb-3"
-        ></textarea>
+            {/* Category */}
+            <div className={styles.formGroup}>
+              <label htmlFor="category" className={styles.formLabel}>
+                Category
+              </label>
+              <div className={styles.inputWrapper}>
+                <i className="bi bi-tag"></i>
+                <select
+                  id="category"
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  required
+                  disabled={isSubmitting}
+                  className={styles.select}
+                >
+                  <option value="">Select a category</option>
+                  <option value="Technical Issue">Technical Issue</option>
+                  <option value="Academic Query">Academic Query</option>
+                  <option value="Administrative Help">Administrative Help</option>
+                  <option value="Enrollment">Enrollment</option>
+                  <option value="Financial Aid">Financial Aid</option>
+                  <option value="Library Services">Library Services</option>
+                  <option value="IT Support">IT Support</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className={styles.inputHint}>
+                <i className="bi bi-info-circle"></i>
+                <span>Choose the category that best matches your issue</span>
+              </div>
+            </div>
 
-        <input
-          type="email"
-          name="studentEmail"
-          placeholder="Email"
-          value={formData.studentEmail}
-          onChange={handleChange}
-          required
-          className="form-control mb-3"
-        />
+            {/* Description */}
+            <div className={styles.formGroup}>
+              <label htmlFor="description" className={styles.formLabel}>
+                Description
+              </label>
+              <div className={styles.inputWrapper}>
+                <i className="bi bi-chat-left-text"></i>
+                <textarea
+                  id="description"
+                  name="description"
+                  placeholder="Describe your issue in detail..."
+                  value={formData.description}
+                  onChange={handleChange}
+                  required
+                  disabled={isSubmitting}
+                  rows="5"
+                  className={styles.textarea}
+                ></textarea>
+              </div>
+              <div className={styles.inputHint}>
+                <i className="bi bi-info-circle"></i>
+                <span>Provide as much detail as possible to help us assist you better</span>
+              </div>
+            </div>
+          </div>
 
-        <input
-          type="text"
-          name="studentPhone"
-          placeholder="Phone"
-          value={formData.studentPhone}
-          onChange={handleChange}
-          required
-          className="form-control mb-3"
-        />
+          {/* Contact Information Section */}
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>
+              <i className="bi bi-person"></i>
+              Contact Information
+            </h3>
 
-        <button
-          type="submit"
-          className="btn btn-primary btn-lg px-5"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Submitting..." : "Submit Ticket"}
-        </button>
-      </form>
+            {/* Email */}
+            <div className={styles.formGroup}>
+              <label htmlFor="studentEmail" className={styles.formLabel}>
+                Email Address
+              </label>
+              <div className={styles.inputWrapper}>
+                <i className="bi bi-envelope"></i>
+                <input
+                  type="email"
+                  id="studentEmail"
+                  name="studentEmail"
+                  placeholder="your.email@university.edu"
+                  value={formData.studentEmail}
+                  onChange={handleChange}
+                  required
+                  disabled={isSubmitting}
+                  className={styles.input}
+                />
+              </div>
+              <div className={styles.inputHint}>
+                <i className="bi bi-info-circle"></i>
+                <span>We'll send updates to this email</span>
+              </div>
+            </div>
+
+            {/* Phone */}
+            <div className={styles.formGroup}>
+              <label htmlFor="studentPhone" className={styles.formLabel}>
+                Phone Number
+              </label>
+              <div className={styles.inputWrapper}>
+                <i className="bi bi-telephone"></i>
+                <input
+                  type="tel"
+                  id="studentPhone"
+                  name="studentPhone"
+                  placeholder="e.g., 0316-3280715"
+                  value={formData.studentPhone}
+                  onChange={handleChange}
+                  required
+                  disabled={isSubmitting}
+                  className={styles.input}
+                />
+              </div>
+              <div className={styles.inputHint}>
+                <i className="bi bi-info-circle"></i>
+                <span>Format: 0316-3280715</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className={styles.formActions}>
+            <button
+              type="button"
+              className={styles.clearButton}
+              onClick={handleClear}
+              disabled={isSubmitting}
+            >
+              <i className="bi bi-x-circle"></i>
+              <span>Clear Form</span>
+            </button>
+            <button
+              type="submit"
+              className={styles.submitButton}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className={styles.spinner}></span>
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-send"></i>
+                  <span>Submit Ticket</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+
+        {/* Help Section */}
+        <div className={styles.helpSection}>
+          <div className={styles.helpCard}>
+            <div className={styles.helpIcon}>
+              <i className="bi bi-lightbulb"></i>
+            </div>
+            <div className={styles.helpContent}>
+              <h4>Need Immediate Help?</h4>
+              <p>Try our AI Assistant for instant answers to common questions</p>
+              <button className={styles.helpButton}>
+                <i className="bi bi-robot"></i>
+                Ask AI Assistant
+              </button>
+            </div>
+          </div>
+          
+          <div className={styles.helpCard}>
+            <div className={styles.helpIcon}>
+              <i className="bi bi-clock-history"></i>
+            </div>
+            <div className={styles.helpContent}>
+              <h4>Response Time</h4>
+              <p>Average response time: 24-48 hours</p>
+              <p className={styles.helpNote}>Urgent issues are prioritized</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
